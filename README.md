@@ -7,7 +7,6 @@ Environment:
 
 
 ```
-Q1:
-![alt text](https://github.com/roei502/RootKit/blob/main/1/img/q1.png)
-	
+Q1:	
 ```
+<img src="https://https://github.com/roei502/RootKit/blob/main/1/img/q1.png" width="400" height="400">
