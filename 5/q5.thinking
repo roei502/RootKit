@@ -1,0 +1,49 @@
+how do we get all the moudles when we call lsmod?
+
+lets strace
+strace -s 4096 -o /home/john/git/RootKit/5/output/strace_lsmod.out lsmod
+
+the lsmod just paring the /proc/modules file.
+the same is written in man lsmod
+
+what function does the kernel calls when tring to read /proc/modules?
+
+
+Searching 65692 files for "proc_create.*\("modules"" (regex)
+
+/home/john/git/linux/kernel/module.c:
+ 4401  static int __init proc_modules_init(void)
+ 4402  {
+ 4403: 	proc_create("modules", 0, NULL, &proc_modules_operations);
+ 4404  	return 0;
+ 4405  }
+
+ when we are reading the file. the function 
+static int m_show(struct seq_file *m, void *p) {.....} is called.
+from module.c
+
+i can hook this function just like q3.
+
+can someone see me other from /proc/modules?
+
+what is the kernel module list? can i change it directly? if i will change it, will i be able to rmmod my nmodule?
+
+lets change the kernel module list.
+the rmmod command will not work, its going over the kernel module list and searching for a moudle with the givven name. we are not on this list so it cant find us
+but our module is still runnig, so we will just create our trigger to unload our module.
+we will just use the same hook on the getdents from q2. there are many other options, dosent really matter.
+
+in the include/linux/module.h
+we can see the struct:
+
+struct module {
+	enum module_state state;
+	/* Member of list of modules */
+	struct list_head list;
+	/* Unique handle for this module */
+	char name[MODULE_NAME_LEN];
+.....
+}
+
+this is the linked list of the kernel modules.
+when the kernel is loading us remove the module from the list. when unhide command is called, add our module struct to the list.

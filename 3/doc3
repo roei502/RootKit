@@ -70,3 +70,4 @@ where the kernel saves mapper from file to seq_operations?
 can i remove the old one and just create a new mapper?
 
 the function tcp4_proc_exit_net delete the /proc/net/tcp file
+i can delete it with remove_proc_entry, and in the second arg pass the net folder
