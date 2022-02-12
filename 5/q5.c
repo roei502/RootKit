@@ -2,13 +2,6 @@
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/kallsyms.h>
-#include <linux/unistd.h>
-#include <linux/proc_fs.h>
-#include <linux/net_namespace.h> 
-#include <linux/seq_file.h>
-#include <linux/module.h>
-#include <linux/list.h>
-
 
 MODULE_LICENSE("GPL");
 

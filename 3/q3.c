@@ -2,13 +2,7 @@
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/kallsyms.h>
-#include <linux/unistd.h>
-#include <linux/net.h>
-#include <net/sock.h>
 #include <net/tcp.h>
-#include <linux/proc_fs.h>
-#include <linux/net_namespace.h>
-#include <linux/seq_file.h>
 #include <linux/ftrace.h>
 
 MODULE_LICENSE("GPL");

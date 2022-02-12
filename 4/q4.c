@@ -2,12 +2,7 @@
 #include <linux/module.h>
 #include <linux/kernel.h>
 #include <linux/kallsyms.h>
-#include <linux/unistd.h>
 #include <linux/dirent.h>
-#include <linux/types.h>
-#include <asm/uaccess.h>
-#include <asm/cacheflush.h>
-#include <linux/syscalls.h>
 
 MODULE_LICENSE("GPL");
 
