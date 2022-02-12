@@ -59,6 +59,73 @@ finally:
 
 as you can see, i also hooked the getdents64. its the same way as hooking the getdents.
 
+#### Q3:
+
+using strace and the man page we can see that the information about ipv4 sockets are from /proc/net/tcp
+
+lets understand what is this file and what functionallity is behind this file.
+
+the line that creates the file:
+
+```c
+static int __net_init tcp4_proc_init_net(struct net *net)
+{
+	if (!proc_create_net_data("tcp", 0444, net->proc_net, &tcp4_seq_ops,
+			sizeof(struct tcp_iter_state), &tcp4_seq_afinfo))
+		return -ENOMEM;
+	return 0;
+}
+```
+
+lets see that ops are called with this file
+
+```c
+static const struct seq_operations tcp4_seq_ops = {
+	.show		= tcp4_seq_show,
+	.start		= tcp_seq_start,
+	.next		= tcp_seq_next,
+	.stop		= tcp_seq_stop,
+}
+```
+
+and if we will see the function tcp4_seq_show
+
+```c
+static int tcp4_seq_show(struct seq_file *seq, void *v)
+{
+	struct tcp_iter_state *st;
+	struct sock *sk = v;
+	
+	seq_setwidth(seq, TMPSZ - 1);
+	if (v == SEQ_START_TOKEN) {
+		seq_puts(seq, "  sl  local_address rem_address   st tx_queue "
+			   "rx_queue tr tm->when retrnsmt   uid  timeout "
+			   "inode");
+		goto out;
+	}
+	...
+```
+this heades is the same header when reading /proc/net/tcp, we are in the right place.
+
+this is the function we want to hook. we will check if the struct of the sock (sk) has one of our parameters, if it does return and dont output to the file.
+
+we need to figure out how to make the hook.
+
+the first thing i did is trying to replace the function called when reading /proc/net/tcp
+
+the easiest thing to do is to remove the "tcp" entry using the function remove_proc_entry. now the there is no such file /proc/net/tcp
+
+then just register our functionallity using proc_create_net_data just like the kernel does when init whith our costumed structs.
+
+this solition works but its not the best, the changes of the files are not atomic so there will be time when /proc/net/tcp will not exists.
+
+after searching online for kernel hooking i found 
+https://www.kernel.org/doc/html/v4.17/trace/ftrace-uses.html
+
+we can register a callback function that is called when someone trying to call tcp4_seq_show, and then we can chage the function he is going to call from the original tcp4_seq_show to our hooked_tcp4_seq_show. and then we will be completely hidden.
+
+<img src="https://github.com/roei502/RootKit/blob/main/3/img/q3.png">
+
 #### Q4:	
 
 first thing as the others, lets strace the ps command to see how it works
@@ -95,7 +162,7 @@ what function does the kernel calls when tring to read /proc/modules?
 
 lets search where is the /proc/modules is created, and then we will search for the fucntion itself.
    
-```bash
+```c
 Searching 65692 files for "proc_create.*\("modules"" (regex)
 
 /home/john/git/linux/kernel/module.c:
@@ -116,7 +183,7 @@ we could hook this function just as we did in q3.
    
 but there is a better soultion. if we will look in the module.h file, we can see that all the modules are stored in a list.
    
-```bash
+```c
 struct module {
 	enum module_state state;
 	/* Member of list of modules */
@@ -130,7 +197,7 @@ we can remove our module from this list, then when lsmod / other function is cal
    
 but there is a problem with that. if we will look at the function that remove modules (found syscall from stracing rmmod), we will see:
    
-```bash
+```c
 ...
 struct module *mod;
 mod = find_module(name);
