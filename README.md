@@ -57,3 +57,23 @@ finally:
 <img src="https://github.com/roei502/RootKit/blob/main/2/img/q2_answer.png">
 
 as you can see, i also hooked the getdents64. its the same way as hooking the getdents.
+
+#### Q4:	
+
+first thing as the others, lets strace the ps command to see how it works
+
+```bash
+strace -s 4096 -o /home/john/git/RootKit/4/output/strace_ps.out ps -fade
+```
+
+we can see that the ps command using the getdents syscall to get all the dirs in /proc
+
+then reading the /proc/<pid>/stat and /proc/<pid>/status to get the information
+
+if we can just hide our directory from the getdents, the ps command will not output our process.
+
+its the same funcionallity as q2.
+
+the process works the same becuase we did not touch him.
+   
+<img src="https://github.com/roei502/RootKit/blob/main/4/img/q4.png">
