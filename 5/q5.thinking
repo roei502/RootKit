@@ -3,11 +3,10 @@ how do we get all the moudles when we call lsmod?
 lets strace
 strace -s 4096 -o /home/john/git/RootKit/5/output/strace_lsmod.out lsmod
 
-the lsmod just paring the /proc/modules file.
+the lsmod just printing the /proc/modules file.
 the same is written in man lsmod
 
 what function does the kernel calls when tring to read /proc/modules?
-
 
 Searching 65692 files for "proc_create.*\("modules"" (regex)
 
@@ -18,7 +17,7 @@ Searching 65692 files for "proc_create.*\("modules"" (regex)
  4404  	return 0;
  4405  }
 
- when we are reading the file. the function 
+when we are reading the file. the function 
 static int m_show(struct seq_file *m, void *p) {.....} is called.
 from module.c
 
