@@ -8,6 +8,3 @@ then reading the /proc/<pid>/stat and /proc/<pid>/status to get the information
 if we can just hide our directory from the getdents, the ps command will not output our process.
 its the same funcionallity as q2.
 the process works the same becuase we did not touch him.
-
-TODO: add images ect...
-TODO: maybe check if i am running from /proc?
