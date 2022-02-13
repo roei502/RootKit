@@ -56,7 +56,6 @@ void hide_module(void) {
 * Function: unhide_module
 * ---------------------
 * if the module is not in the module list, add it.
-* TODO: what to do if prev_module is removed from the list?
 */
 void unhide_module(void) {
     if (!is_hidden)
